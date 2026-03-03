@@ -123,24 +123,36 @@ def check_bbdown() -> CheckResult:
 
 
 def check_bbdown_auth() -> CheckResult:
-    bbdown_data = Path.home() / "BBDown.data"
-    if bbdown_data.exists():
+    bbdown_path = shutil.which("BBDown")
+    candidates = [
+        Path.home() / "BBDown.data",
+        Path.home() / ".local" / "bin" / "BBDown.data",
+    ]
+    if bbdown_path:
+        candidates.append(Path(bbdown_path).with_name("BBDown.data"))
+
+    checked = []
+    found_files = []
+    for candidate in candidates:
+        if candidate in checked:
+            continue
+        checked.append(candidate)
+        if not candidate.exists():
+            continue
+        found_files.append(candidate)
         try:
-            content = bbdown_data.read_text()
+            content = candidate.read_text()
             has_sessdata = "SESSDATA" in content
             if has_sessdata:
                 return CheckResult(
                     name="BBDown Auth",
                     status=CheckStatus.OK,
                     message="Logged in",
-                    details={"cookie_file": str(bbdown_data)},
+                    details={
+                        "cookie_file": str(candidate),
+                        "checked_files": [str(p) for p in checked],
+                    },
                 )
-            return CheckResult(
-                name="BBDown Auth",
-                status=CheckStatus.ERROR,
-                message="Cookie file exists but no SESSDATA",
-                remediation="Run: BBDown login",
-            )
         except Exception as e:
             return CheckResult(
                 name="BBDown Auth",
@@ -148,10 +160,21 @@ def check_bbdown_auth() -> CheckResult:
                 message=f"Cannot read cookie file: {e}",
                 remediation="Run: BBDown login",
             )
+
+    if found_files:
+        return CheckResult(
+            name="BBDown Auth",
+            status=CheckStatus.ERROR,
+            message="Cookie file exists but no SESSDATA",
+            details={"cookie_files": [str(p) for p in found_files]},
+            remediation="Run: BBDown login",
+        )
+
     return CheckResult(
         name="BBDown Auth",
         status=CheckStatus.ERROR,
         message="Not logged in",
+        details={"checked_files": [str(p) for p in checked]},
         remediation="Run: BBDown login",
     )
 

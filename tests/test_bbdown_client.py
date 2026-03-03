@@ -125,3 +125,50 @@ def test_extract_subtitle_info_no_subtitle(mock_sleep):
     info = client._extract_subtitle_info("视频标题: test\n完成")
     assert info.has_subtitle is False
     assert info.languages == []
+
+
+def test_prioritize_subtitle_files_prefers_chinese(tmp_path):
+    client = _make_client()
+    paths = [
+        tmp_path / "BV1xxx.ai-en.srt",
+        tmp_path / "BV1xxx.ai-zh.srt",
+        tmp_path / "BV1xxx.es.srt",
+        tmp_path / "BV1xxx.zh.srt",
+    ]
+    for p in paths:
+        p.write_text("", encoding="utf-8")
+
+    ordered = client._prioritize_subtitle_files(paths)
+    assert ordered[0].name.endswith(".ai-zh.srt")
+    assert ordered[1].name.endswith(".zh.srt")
+
+
+@patch("bilibili_subtitle.bbdown_client.time.sleep")
+@patch("bilibili_subtitle.bbdown_client.BBDownClient._extract_video_id", return_value="BV1test12345")
+@patch("bilibili_subtitle.bbdown_client.BBDownClient._run")
+def test_get_video_info_retries_without_select_lang(mock_run, _mock_extract_video_id, _mock_sleep, tmp_path):
+    client = _make_client()
+
+    def run_side_effect(args, **kwargs):
+        if "--select-lang" in args:
+            return subprocess.CompletedProcess(
+                args=args,
+                returncode=1,
+                stdout="",
+                stderr="Unrecognized command or argument 'zh-Hans'.",
+            )
+        subtitle_file = tmp_path / "BV1test12345.ai-zh.srt"
+        subtitle_file.write_text("1\n00:00:00,000 --> 00:00:01,000\n你好\n", encoding="utf-8")
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="下载字幕 ai-zh",
+            stderr="",
+        )
+
+    mock_run.side_effect = run_side_effect
+    info = client.get_video_info("https://www.bilibili.com/video/BV1test12345", tmp_path, lang="zh-Hans")
+
+    assert mock_run.call_count == 2
+    assert info.subtitle_files
+    assert info.subtitle_files[0].name.endswith(".ai-zh.srt")

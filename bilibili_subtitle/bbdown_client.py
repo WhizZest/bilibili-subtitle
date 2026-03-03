@@ -123,7 +123,7 @@ class BBDownClient:
         raise last_exc or BBDownError("BBDown failed after retries")
 
     def get_video_info(
-        self, url: str, work_dir: Path, *, lang: str | None = "zh-Hans"
+        self, url: str, work_dir: Path, *, lang: str | None = None
     ) -> VideoInfo:
         """Download subtitles and return video info (Fix 4, 7)."""
         work_dir.mkdir(parents=True, exist_ok=True)
@@ -133,7 +133,7 @@ class BBDownClient:
             work_dir.glob(f"{video_id}*.vtt")
         )
 
-        args = self._base_args() + [
+        base_args = self._base_args() + [
             "--sub-only",
             "--skip-ai",
             "false",
@@ -142,20 +142,36 @@ class BBDownClient:
             "--work-dir",
             str(work_dir),
         ]
-        if lang is not None:
-            args += ["--select-lang", lang]
-        args.append(url)
+        result: subprocess.CompletedProcess[str] | None = None
+        output = ""
 
-        result = self._run(args, check=False)
-        output = result.stdout + result.stderr
+        if lang is not None:
+            args = base_args + ["--select-lang", lang, url]
+            result = self._run(args, check=False)
+            output = result.stdout + result.stderr
+            if (
+                result.returncode != 0
+                and "Unrecognized command or argument" in output
+                and lang in output
+            ):
+                logger.warning(
+                    "BBDown does not support --select-lang on this version; retrying without language filter"
+                )
+                result = None
+
+        if result is None:
+            args = base_args + [url]
+            result = self._run(args, check=False)
+            output = result.stdout + result.stderr
 
         new_files = sorted(
             (set(work_dir.glob(f"{video_id}*.srt")) | set(work_dir.glob(f"{video_id}*.vtt")))
             - existing_files
         )
+        prioritized_files = self._prioritize_subtitle_files(new_files)
 
         # Fix 7: raise on non-zero exit when no files were produced
-        if result.returncode != 0 and not new_files:
+        if result.returncode != 0 and not prioritized_files:
             logger.error("BBDown exited %d with no subtitle files", result.returncode)
             raise BBDownError(
                 f"BBDown failed (rc={result.returncode}): {output[-500:]}"
@@ -167,7 +183,7 @@ class BBDownClient:
             video_id=video_id,
             title=title,
             subtitle_info=subtitle_info,
-            subtitle_files=new_files,
+            subtitle_files=prioritized_files,
         )
 
     def _extract_video_id(self, url: str) -> str:
@@ -211,6 +227,21 @@ class BBDownClient:
             has_ai_subtitle=has_ai_subtitle,
             languages=languages,
         )
+
+    def _prioritize_subtitle_files(self, files: list[Path]) -> list[Path]:
+        """Prioritize Chinese subtitle tracks before other languages."""
+
+        def priority(path: Path) -> tuple[int, str]:
+            name = path.stem.lower()
+            if name.endswith(".ai-zh"):
+                return (0, name)
+            if name.endswith(".zh"):
+                return (1, name)
+            if name.endswith(".ai-en"):
+                return (2, name)
+            return (3, name)
+
+        return sorted(files, key=priority)
 
     def download_audio(self, url: str, work_dir: Path) -> Path:
         work_dir.mkdir(parents=True, exist_ok=True)
