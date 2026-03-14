@@ -13,10 +13,12 @@ user-invocable: true
 | 任务 | 命令 |
 |------|------|
 | 前置检查 | `pixi run python -m bilibili_subtitle --check` |
-| 基本提取 | `pixi run python -m bilibili_subtitle "BV1234567890"` |
-| 快速模式 | `pixi run python -m bilibili_subtitle "URL" --skip-proofread --skip-summary` |
-| JSON 输出 | `pixi run python -m bilibili_subtitle "URL" --json-output` |
-| 双语输出 | `pixi run python -m bilibili_subtitle "URL" --output-lang zh+en` |
+| 基本提取 | `pixi run python -m bilibili_subtitle "BV1234567890" -o <your-workspace>/output` |
+| 快速模式 | `pixi run python -m bilibili_subtitle "URL" -o <your-workspace>/output --skip-proofread --skip-summary` |
+| JSON 输出 | `pixi run python -m bilibili_subtitle "URL" -o <your-workspace>/output --json-output` |
+| 双语输出 | `pixi run python -m bilibili_subtitle "URL" -o <your-workspace>/output --output-lang zh+en` |
+
+> 💡 **提示**: 请将 `<your-workspace>` 替换为你自己的工作空间路径，例如：`D:\MyProject\output` 或 `~/videos/output`
 
 ## 执行层级
 

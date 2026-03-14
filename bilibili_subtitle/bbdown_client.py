@@ -87,6 +87,8 @@ class BBDownClient:
                     args,
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     check=False,
                     timeout=timeout,
                 )
@@ -123,15 +125,11 @@ class BBDownClient:
         raise last_exc or BBDownError("BBDown failed after retries")
 
     def get_video_info(
-        self, url: str, work_dir: Path, *, lang: str | None = "zh-Hans"
+        self, url: str, work_dir: Path, *, lang: str | None = None
     ) -> VideoInfo:
         """Download subtitles and return video info (Fix 4, 7)."""
         work_dir.mkdir(parents=True, exist_ok=True)
         video_id = self._extract_video_id(url)
-
-        existing_files = set(work_dir.glob(f"{video_id}*.srt")) | set(
-            work_dir.glob(f"{video_id}*.vtt")
-        )
 
         args = self._base_args() + [
             "--sub-only",
@@ -146,20 +144,30 @@ class BBDownClient:
             args += ["--select-lang", lang]
         args.append(url)
 
+        existing_files = set(
+            work_dir.glob(f"{video_id}*.srt")
+        ) | set(work_dir.glob(f"{video_id}*.vtt"))
+
         result = self._run(args, check=False)
-        output = result.stdout + result.stderr
+        output = (result.stdout or "") + (result.stderr or "")
 
-        new_files = sorted(
-            (set(work_dir.glob(f"{video_id}*.srt")) | set(work_dir.glob(f"{video_id}*.vtt")))
-            - existing_files
-        )
+        post_files = set(
+            work_dir.glob(f"{video_id}*.srt")
+        ) | set(work_dir.glob(f"{video_id}*.vtt"))
+        new_files = sorted(post_files - existing_files)
 
-        # Fix 7: raise on non-zero exit when no files were produced
-        if result.returncode != 0 and not new_files:
-            logger.error("BBDown exited %d with no subtitle files", result.returncode)
-            raise BBDownError(
-                f"BBDown failed (rc={result.returncode}): {output[-500:]}"
-            )
+        if result.returncode != 0:
+            if new_files:
+                logger.warning(
+                    "BBDown exited %d but produced %d new subtitle file(s)",
+                    result.returncode,
+                    len(new_files),
+                )
+            else:
+                logger.error("BBDown exited %d with no new subtitle files", result.returncode)
+                raise BBDownError(
+                    f"BBDownload failed (rc={result.returncode}): {output[-500:]}"
+                )
 
         title = self._extract_title(output)
         subtitle_info = self._extract_subtitle_info(output)
@@ -167,7 +175,7 @@ class BBDownClient:
             video_id=video_id,
             title=title,
             subtitle_info=subtitle_info,
-            subtitle_files=new_files,
+            subtitle_files=sorted(post_files),
         )
 
     def _extract_video_id(self, url: str) -> str:
