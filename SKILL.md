@@ -13,10 +13,10 @@ user-invocable: true
 | 任务 | 命令 |
 |------|------|
 | 前置检查 | `pixi run python -m bilibili_subtitle --check` |
-| 基本提取 | `pixi run python -m bilibili_subtitle "BV1234567890"` |
-| 快速模式 | `pixi run python -m bilibili_subtitle "URL" --skip-proofread --skip-summary` |
-| JSON 输出 | `pixi run python -m bilibili_subtitle "URL" --json-output` |
-| 双语输出 | `pixi run python -m bilibili_subtitle "URL" --output-lang zh+en` |
+| 基本提取 | `pixi run python -m bilibili_subtitle "BV1234567890" -o workspace/output` |
+| 快速模式 | `pixi run python -m bilibili_subtitle "URL" -o workspace/output --skip-proofread --skip-summary` |
+| JSON 输出 | `pixi run python -m bilibili_subtitle "URL" -o workspace/output --json-output` |
+| 双语输出 | `pixi run python -m bilibili_subtitle "URL" -o workspace/output --output-lang zh+en` |
 
 ## 执行层级
 

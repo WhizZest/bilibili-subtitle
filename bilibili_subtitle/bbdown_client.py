@@ -87,6 +87,8 @@ class BBDownClient:
                     args,
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     check=False,
                     timeout=timeout,
                 )
@@ -123,15 +125,11 @@ class BBDownClient:
         raise last_exc or BBDownError("BBDown failed after retries")
 
     def get_video_info(
-        self, url: str, work_dir: Path, *, lang: str | None = "zh-Hans"
+        self, url: str, work_dir: Path, *, lang: str | None = None
     ) -> VideoInfo:
         """Download subtitles and return video info (Fix 4, 7)."""
         work_dir.mkdir(parents=True, exist_ok=True)
         video_id = self._extract_video_id(url)
-
-        existing_files = set(work_dir.glob(f"{video_id}*.srt")) | set(
-            work_dir.glob(f"{video_id}*.vtt")
-        )
 
         args = self._base_args() + [
             "--sub-only",
@@ -147,11 +145,10 @@ class BBDownClient:
         args.append(url)
 
         result = self._run(args, check=False)
-        output = result.stdout + result.stderr
+        output = (result.stdout or "") + (result.stderr or "")
 
         new_files = sorted(
-            (set(work_dir.glob(f"{video_id}*.srt")) | set(work_dir.glob(f"{video_id}*.vtt")))
-            - existing_files
+            set(work_dir.glob(f"{video_id}*.srt")) | set(work_dir.glob(f"{video_id}*.vtt"))
         )
 
         # Fix 7: raise on non-zero exit when no files were produced
