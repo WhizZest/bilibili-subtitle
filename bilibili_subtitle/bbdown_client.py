@@ -31,6 +31,23 @@ _FATAL_PATTERNS = re.compile(
     r"login|auth|cookie|not found|不存在|404|权限", re.IGNORECASE
 )
 
+# Language priority for subtitle file selection
+_LANG_PRIORITY: dict[str, int] = {
+    "zh": 100,
+    "zh-cn": 100,
+    "zh-hans": 100,
+    "zh-hans-cn": 100,
+    "zh-hant": 90,
+    "zh-tw": 90,
+    "ai-zh": 95,
+    "en": 50,
+    "ai-en": 45,
+    "ja": 40,
+    "ai-ja": 35,
+    "ko": 30,
+    "ai-ko": 25,
+}
+
 
 @dataclass(frozen=True, slots=True)
 class SubtitleInfo:
@@ -175,7 +192,7 @@ class BBDownClient:
             video_id=video_id,
             title=title,
             subtitle_info=subtitle_info,
-            subtitle_files=sorted(post_files),
+            subtitle_files=self._sort_subtitle_files_by_priority(sorted(post_files)),
         )
 
     def _extract_video_id(self, url: str) -> str:
@@ -186,6 +203,17 @@ class BBDownClient:
         if av_match:
             return f"av{av_match.group(1)}"
         return "unknown"
+
+    def _sort_subtitle_files_by_priority(self, files: list[Path]) -> list[Path]:
+        """Sort subtitle files by language priority (Fix for multi-language issue)."""
+        def get_priority(file: Path) -> int:
+            stem = file.stem.lower()
+            for lang, priority in _LANG_PRIORITY.items():
+                if lang in stem:
+                    return priority
+            return 0  # Unknown languages get lowest priority
+        
+        return sorted(files, key=get_priority, reverse=True)
 
     def _extract_title(self, output: str) -> str | None:
         for line in output.splitlines():
