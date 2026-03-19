@@ -33,6 +33,11 @@ def srt_to_segments(srt_text: str) -> list[Segment]:
         end_ms = _to_ms(m["eh"], m["em"], m["es"], m["ems"])
         text_lines = lines[2:] if lines[0].isdigit() else lines[1:]
         text = " ".join(" ".join(text_lines).replace("\n", " ").split())
+        
+        # Skip segments with empty text
+        if not text.strip():
+            continue
+            
         segments.append(Segment(start_ms=start_ms, end_ms=end_ms, text=text))
 
     return segments
